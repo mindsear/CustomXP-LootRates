@@ -1,9 +1,9 @@
 # CustomXP-LootRates
-Custom XP/Loot Rates for TrinityCore 3.3.5
-
+Custom XP/Loot Rates for TrinityCore 3.3.5  
+  
 
 ### Update (28-April-2018)  
-When helping someone with this, I found out I missed some code in Player.h file.  
+While helping someone with this, I found out I missed some important code in Player.h file.  
 So, open up Player.h in Visual Studio, then press Ctrl+F and find
 ```c++
 std::string GetCoordsMapAreaAndZoneString() const;
