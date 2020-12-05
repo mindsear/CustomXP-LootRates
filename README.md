@@ -38,9 +38,9 @@ On Linux, cd to your source directory, then run
 It will fail to find the files in my experinces, it'll have an output that looks something like a/src/source.file not found. Just copy after the a/ and use that as the source file. Like this src/source.file.
 RBAC.h fails, manually add this
 ```
-  RBAC_PERM_COMMAND_XP_RATE								 = 1008,
-	RBAC_PERM_COMMAND_LOOT_RATE			  			 = 1009,
-	RBAC_PERM_COMMAND_RATE									 = 1010,
+RBAC_PERM_COMMAND_XP_RATE						 = 1008,
+RBAC_PERM_COMMAND_LOOT_RATE			  			 = 1009,
+RBAC_PERM_COMMAND_RATE							 = 1010,
 ```
 Right after
 ```
