@@ -86,7 +86,7 @@ public:
 		// show custom XP rate on login
 		int32 rate = CustomRates::GetXpRateFromDB(player);
 
-		if (rate != -1 && player->getLevel() != sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL))
+		if (rate != -1 && player->GetLevel() != sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL))
 		{
 			uint32 uRate = static_cast<uint32>(rate);
 			player->SetCustomXpRate(uRate);
@@ -155,7 +155,7 @@ public:
 		}
 
 		// already at max level, no point in using the command at all
-		if (me->getLevel() == sWorld->getIntConfig(CONFIG_CUSTOM_XP_LEVEL))
+		if (me->GetLevel() == sWorld->getIntConfig(CONFIG_CUSTOM_XP_LEVEL))
 		{
 			handler->SendSysMessage("|CFF7BBEF7[Custom Rates]|r: You are already at maximum level.");
 			return true;
@@ -247,7 +247,7 @@ public:
 			return false;
 
 		// already at max level, no point in using the command at all
-		if (me->getLevel() == sWorld->getIntConfig(CONFIG_CUSTOM_LOOT_LEVEL))
+		if (me->GetLevel() == sWorld->getIntConfig(CONFIG_CUSTOM_LOOT_LEVEL))
 		{
 			handler->SendSysMessage("|CFF7BBEF7[Custom Rates]|r: You are already at maximum level.");
 			return true;
