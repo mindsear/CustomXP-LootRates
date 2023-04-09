@@ -1,8 +1,8 @@
 diff --git a/src/server/database/Database/Implementation/CharacterDatabase.cpp b/src/server/database/Database/Implementation/CharacterDatabase.cpp
-index 33b691e..3830eb7 100644
+index 87af6be580..dc3a1c5c65 100644
 --- a/src/server/database/Database/Implementation/CharacterDatabase.cpp
 +++ b/src/server/database/Database/Implementation/CharacterDatabase.cpp
-@@ -598,6 +598,18 @@ void CharacterDatabaseConnection::DoPrepareStatements()
+@@ -579,6 +579,18 @@ void CharacterDatabaseConnection::DoPrepareStatements()
      PrepareStatement(CHAR_DEL_CHAR_PET_BY_SLOT, "DELETE FROM character_pet WHERE owner = ? AND (slot = ? OR slot > ?)", CONNECTION_ASYNC);
      PrepareStatement(CHAR_INS_PET, "INSERT INTO character_pet (id, entry, owner, modelid, level, exp, Reactstate, slot, name, renamed, curhealth, curmana, curhappiness, abdata, savetime, CreatedBySpell, PetType) "
                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", CONNECTION_ASYNC);
@@ -22,10 +22,10 @@ index 33b691e..3830eb7 100644
      // PvPstats
      PrepareStatement(CHAR_SEL_PVPSTATS_MAXID, "SELECT MAX(id) FROM pvpstats_battlegrounds", CONNECTION_SYNCH);
 diff --git a/src/server/database/Database/Implementation/CharacterDatabase.h b/src/server/database/Database/Implementation/CharacterDatabase.h
-index 8803ab3..fb2611b 100644
+index 7404a615c6..e7657e7c5d 100644
 --- a/src/server/database/Database/Implementation/CharacterDatabase.h
 +++ b/src/server/database/Database/Implementation/CharacterDatabase.h
-@@ -517,6 +517,18 @@ enum CharacterDatabaseStatements : uint32
+@@ -498,6 +498,18 @@ enum CharacterDatabaseStatements : uint32
      CHAR_DEL_ITEMCONTAINER_MONEY,
      CHAR_INS_ITEMCONTAINER_MONEY,
  
@@ -45,26 +45,24 @@ index 8803ab3..fb2611b 100644
      CHAR_INS_PVPSTATS_BATTLEGROUND,
      CHAR_INS_PVPSTATS_PLAYER,
 diff --git a/src/server/game/Accounts/RBAC.h b/src/server/game/Accounts/RBAC.h
-index 0f8e031..6079814 100644
+index cdca72556e..3e95504fd7 100644
 --- a/src/server/game/Accounts/RBAC.h
 +++ b/src/server/game/Accounts/RBAC.h
-@@ -773,6 +773,11 @@ enum RBACPermissions
-     RBAC_PERM_COMMAND_NPC_SHOWLOOT                           = 865,
-     RBAC_PERM_COMMAND_LIST_SPAWNPOINTS                       = 866,
-     RBAC_PERM_COMMAND_RELOAD_QUEST_GREETING_LOCALE           = 867,
-+	
-+	// Custom Commands
-+	RBAC_PERM_COMMAND_XP_RATE								 = 1008,
-+	RBAC_PERM_COMMAND_LOOT_RATE								 = 1009,
-+	RBAC_PERM_COMMAND_RATE									 = 1010,
- 
-     // custom permissions 1000+
-     RBAC_PERM_MAX
+@@ -744,6 +744,9 @@ enum RBACPermissions
+     // 878-879 previously used, do not reuse
+     RBAC_PERM_COMMAND_PDUMP_COPY                             = 880,
+     RBAC_PERM_COMMAND_RELOAD_VEHICLE_TEMPLATE                = 881,
++    RBAC_PERM_COMMAND_XP_RATE                                = 1008,
++    RBAC_PERM_COMMAND_LOOT_RATE                              = 1009,
++    RBAC_PERM_COMMAND_RATE							 = 1010,
+     //
+     // IF YOU ADD NEW PERMISSIONS, ADD THEM IN MASTER BRANCH AS WELL!
+     //
 diff --git a/src/server/game/Entities/Player/Player.cpp b/src/server/game/Entities/Player/Player.cpp
-index 48a515e..0ce8bc4 100644
+index a6d7c7334c..245d5fbae7 100644
 --- a/src/server/game/Entities/Player/Player.cpp
 +++ b/src/server/game/Entities/Player/Player.cpp
-@@ -6452,6 +6452,7 @@ void Player::CheckAreaExploreAndOutdoor()
+@@ -6475,6 +6475,7 @@ void Player::CheckAreaExploreAndOutdoor()
                      XP = std::max(minScaledXP, XP);
                  }
  
@@ -72,11 +70,37 @@ index 48a515e..0ce8bc4 100644
                  GiveXP(XP, nullptr);
                  SendExplorationExperience(areaId, XP);
              }
+diff --git a/src/server/game/Entities/Player/Player.h b/src/server/game/Entities/Player/Player.h
+index a7d6a5551f..485947f0ba 100644
+--- a/src/server/game/Entities/Player/Player.h
++++ b/src/server/game/Entities/Player/Player.h
+@@ -2193,6 +2193,12 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
+         std::string GetMapAreaAndZoneString() const;
+         std::string GetCoordsMapAreaAndZoneString() const;
+ 
++        void SetCustomXpRate(uint32 rate) { m_CustomXpRate = rate; }
++        uint32 GetCustomXpRate() const { return m_CustomXpRate; }
++
++        void SetCustomLootRate(uint32 rate) { m_CustomLootRate = rate; }
++        uint32 GetCustomLootRate() const { return m_CustomLootRate; }
++
+         std::string GetDebugInfo() const override;
+ 
+     protected:
+@@ -2515,6 +2521,8 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
+         uint32 _pendingBindTimer;
+ 
+         uint32 _activeCheats;
++        uint32 m_CustomXpRate;
++        uint32 m_CustomLootRate;
+ 
+         // variables to save health and mana before duel and restore them after duel
+         uint32 healthBeforeDuel;
 diff --git a/src/server/game/Loot/Loot.cpp b/src/server/game/Loot/Loot.cpp
-index 7f6aaf2..d510a12 100644
+index e08da5a251..6e386fc7e6 100644
 --- a/src/server/game/Loot/Loot.cpp
 +++ b/src/server/game/Loot/Loot.cpp
-@@ -171,7 +171,7 @@ bool Loot::FillLoot(uint32 lootId, LootStore const& store, Player* lootOwner, bo
+@@ -203,7 +203,7 @@ bool Loot::FillLoot(uint32 lootId, LootStore const& store, Player* lootOwner, bo
      items.reserve(MAX_NR_LOOT_ITEMS);
      quest_items.reserve(MAX_NR_QUEST_ITEMS);
  
@@ -86,10 +110,10 @@ index 7f6aaf2..d510a12 100644
                                                                      // Setting access rights for group loot case
      Group* group = lootOwner->GetGroup();
 diff --git a/src/server/game/Loot/LootMgr.cpp b/src/server/game/Loot/LootMgr.cpp
-index f93ee0a..8b9fde9 100644
+index ba5239a78e..efe06a9570 100644
 --- a/src/server/game/Loot/LootMgr.cpp
 +++ b/src/server/game/Loot/LootMgr.cpp
-@@ -560,7 +560,7 @@ void LootTemplate::CopyConditions(LootItem* li) const
+@@ -559,7 +559,7 @@ void LootTemplate::CopyConditions(LootItem* li) const
  }
  
  // Rolls for every item in the template and adds the rolled items the the loot
@@ -99,10 +123,10 @@ index f93ee0a..8b9fde9 100644
      if (groupId)                                            // Group reference uses own processing of the group
      {
 diff --git a/src/server/game/Loot/LootMgr.h b/src/server/game/Loot/LootMgr.h
-index 6d9d160..9548141 100644
+index 675abb5061..146ec5da2f 100644
 --- a/src/server/game/Loot/LootMgr.h
 +++ b/src/server/game/Loot/LootMgr.h
-@@ -109,7 +109,7 @@ class TC_GAME_API LootTemplate
+@@ -108,7 +108,7 @@ class TC_GAME_API LootTemplate
          // Adds an entry to the group (at loading stage)
          void AddEntry(LootStoreItem* item);
          // Rolls for every item in the template and adds the rolled items the the loot
@@ -112,10 +136,10 @@ index 6d9d160..9548141 100644
          void CopyConditions(LootItem* li) const;
  
 diff --git a/src/server/game/Miscellaneous/Formulas.h b/src/server/game/Miscellaneous/Formulas.h
-index 7931860..c2e78a6 100644
+index b5b5ed2753..64aea052b4 100644
 --- a/src/server/game/Miscellaneous/Formulas.h
 +++ b/src/server/game/Miscellaneous/Formulas.h
-@@ -194,7 +194,7 @@ namespace Trinity
+@@ -193,7 +193,7 @@ namespace Trinity
                      xpMod *= creature->GetCreatureTemplate()->ModExperience;
                  }
  
@@ -125,10 +149,10 @@ index 7931860..c2e78a6 100644
                      xpMod *= 1.0f - 2.0f * creature->m_PlayerDamageReq / creature->GetMaxHealth();
  
 diff --git a/src/server/game/World/World.cpp b/src/server/game/World/World.cpp
-index af40397..6aa5b14 100644
+index ed38d2505e..fc65975268 100644
 --- a/src/server/game/World/World.cpp
 +++ b/src/server/game/World/World.cpp
-@@ -1105,6 +1105,11 @@ void World::LoadConfigSettings(bool reload)
+@@ -1131,6 +1131,11 @@ void World::LoadConfigSettings(bool reload)
      m_bool_configs[CONFIG_QUEST_IGNORE_RAID] = sConfigMgr->GetBoolDefault("Quests.IgnoreRaid", false);
      m_bool_configs[CONFIG_QUEST_IGNORE_AUTO_ACCEPT] = sConfigMgr->GetBoolDefault("Quests.IgnoreAutoAccept", false);
      m_bool_configs[CONFIG_QUEST_IGNORE_AUTO_COMPLETE] = sConfigMgr->GetBoolDefault("Quests.IgnoreAutoComplete", false);
@@ -140,7 +164,7 @@ index af40397..6aa5b14 100644
  
      m_int_configs[CONFIG_RANDOM_BG_RESET_HOUR] = sConfigMgr->GetIntDefault("Battleground.Random.ResetHour", 6);
      if (m_int_configs[CONFIG_RANDOM_BG_RESET_HOUR] > 23)
-@@ -1151,6 +1156,11 @@ void World::LoadConfigSettings(bool reload)
+@@ -1184,6 +1189,11 @@ void World::LoadConfigSettings(bool reload)
      m_float_configs[CONFIG_LISTEN_RANGE_SAY]       = sConfigMgr->GetFloatDefault("ListenRange.Say", 25.0f);
      m_float_configs[CONFIG_LISTEN_RANGE_TEXTEMOTE] = sConfigMgr->GetFloatDefault("ListenRange.TextEmote", 25.0f);
      m_float_configs[CONFIG_LISTEN_RANGE_YELL]      = sConfigMgr->GetFloatDefault("ListenRange.Yell", 300.0f);
@@ -152,7 +176,7 @@ index af40397..6aa5b14 100644
  
      m_bool_configs[CONFIG_BATTLEGROUND_CAST_DESERTER]                = sConfigMgr->GetBoolDefault("Battleground.CastDeserter", true);
      m_bool_configs[CONFIG_BATTLEGROUND_QUEUE_ANNOUNCER_ENABLE]       = sConfigMgr->GetBoolDefault("Battleground.QueueAnnouncer.Enable", false);
-@@ -1490,6 +1500,53 @@ void World::LoadConfigSettings(bool reload)
+@@ -1538,6 +1548,53 @@ void World::LoadConfigSettings(bool reload)
  
      // Whether to use LoS from game objects
      m_bool_configs[CONFIG_CHECK_GOBJECT_LOS] = sConfigMgr->GetBoolDefault("CheckGameObjectLoS", true);
@@ -204,15 +228,15 @@ index af40397..6aa5b14 100644
 +	m_bool_configs[CONFIG_PLAYER_INDIVIDUAL_LOOT_RATE_SHOW_ON_LOGIN] = sConfigMgr->GetBoolDefault("Player.ShowLootRateOnLogin", true);
 +	// End of Custom XP Rates
  
-     // call ScriptMgr if we're reloading the configuration
-     if (reload)
+     // Anti movement cheat measure. Time each client have to acknowledge a movement change until they are kicked
+     m_int_configs[CONFIG_PENDING_MOVE_CHANGES_TIMEOUT] = sConfigMgr->GetIntDefault("AntiCheat.PendingMoveChangesTimeoutTime", 0);
 diff --git a/src/server/game/World/World.h b/src/server/game/World/World.h
-index 8d06620..7cc3078 100644
+index 8119d1321c..905e459e24 100644
 --- a/src/server/game/World/World.h
 +++ b/src/server/game/World/World.h
-@@ -159,6 +159,10 @@ enum WorldBoolConfigs
+@@ -156,6 +156,10 @@ enum WorldBoolConfigs
+     CONFIG_ENABLE_MMAPS,
      CONFIG_WINTERGRASP_ENABLE,
-     CONFIG_UI_QUESTLEVELS_IN_DIALOGS,     // Should we add quest levels to the title in the NPC dialogs?
      CONFIG_EVENT_ANNOUNCE,
 +	// Custom XP Rates
 +	CONFIG_PLAYER_INDIVIDUAL_XP_RATE_SHOW_ON_LOGIN,
@@ -221,7 +245,7 @@ index 8d06620..7cc3078 100644
      CONFIG_STATS_LIMITS_ENABLE,
      CONFIG_INSTANCES_RESET_ANNOUNCE,
      CONFIG_IP_BASED_ACTION_LOGGING,
-@@ -216,6 +220,10 @@ enum WorldIntConfigs
+@@ -215,6 +219,10 @@ enum WorldIntConfigs
      CONFIG_INTERVAL_CHANGEWEATHER,
      CONFIG_INTERVAL_DISCONNECT_TOLERANCE,
      CONFIG_PORT_WORLD,
@@ -232,7 +256,7 @@ index 8d06620..7cc3078 100644
      CONFIG_SOCKET_TIMEOUTTIME,
      CONFIG_SESSION_ADD_DELAY,
      CONFIG_GAME_TYPE,
-@@ -359,6 +367,12 @@ enum WorldIntConfigs
+@@ -366,6 +374,12 @@ enum WorldIntConfigs
      CONFIG_WINTERGRASP_BATTLETIME,
      CONFIG_WINTERGRASP_NOBATTLETIME,
      CONFIG_WINTERGRASP_RESTART_AFTER_CRASH,
@@ -245,26 +269,47 @@ index 8d06620..7cc3078 100644
      CONFIG_PACKET_SPOOF_POLICY,
      CONFIG_PACKET_SPOOF_BANMODE,
      CONFIG_PACKET_SPOOF_BANDURATION,
-@@ -391,6 +405,10 @@ enum WorldIntConfigs
-     CONFIG_RESPAWN_DYNAMICMINIMUM_GAMEOBJECT,
+@@ -399,6 +413,10 @@ enum WorldIntConfigs
      CONFIG_RESPAWN_GUIDWARNING_FREQUENCY,
      CONFIG_SOCKET_TIMEOUTTIME_ACTIVE,
-+	// Custom XP Rates
-+	CONFIG_CUSTOM_RATE_XP_ENABLED,
-+	CONFIG_CUSTOM_RATE_LOOT_ENABLED,
-+	// End of Custom XP Rates
+     CONFIG_PENDING_MOVE_CHANGES_TIMEOUT,
++    // Custom XP Rates
++    CONFIG_CUSTOM_RATE_XP_ENABLED,
++    CONFIG_CUSTOM_RATE_LOOT_ENABLED,
++    // End of Custom XP Rates
      INT_CONFIG_VALUE_COUNT
  };
  
+diff --git a/src/server/scripts/CMakeLists.txt b/src/server/scripts/CMakeLists.txt
+index 319aafaec9..6709205780 100644
+--- a/src/server/scripts/CMakeLists.txt
++++ b/src/server/scripts/CMakeLists.txt
+@@ -12,7 +12,6 @@ message("")
+ 
+ # Make the script module list available in the current scope
+ GetScriptModuleList(SCRIPT_MODULE_LIST)
+-
+ # Make the native install offset available in this scope
+ GetInstallOffset(INSTALL_OFFSET)
+ 
+@@ -242,4 +241,9 @@ if(DISABLED_SCRIPT_MODULE_PROJECTS)
+   ")
+ endif()
+ 
++set(scripts_STAT_SRCS
++  ${scripts_STAT_SRCS}
++Custom/custom_rates.cpp
++)
++
+ message("")
 diff --git a/src/server/scripts/Custom/custom_script_loader.cpp b/src/server/scripts/Custom/custom_script_loader.cpp
-index b74145a..b604b1a 100644
+index 9e5e9ba2bf..ee67d6cbab 100644
 --- a/src/server/scripts/Custom/custom_script_loader.cpp
 +++ b/src/server/scripts/Custom/custom_script_loader.cpp
-@@ -16,10 +16,11 @@
+@@ -16,9 +16,13 @@
   */
  
  // This is where scripts' loading functions should be declared:
--
 +void Add_SC_Custom_Rates();
  
  // The name of this function should match:
@@ -274,10 +319,10 @@ index b74145a..b604b1a 100644
 +	Add_SC_Custom_Rates();
  }
 diff --git a/src/server/worldserver/worldserver.conf.dist b/src/server/worldserver/worldserver.conf.dist
-index 78d1865..3f916a5 100644
+index 90ad17d318..dfa7ae13de 100644
 --- a/src/server/worldserver/worldserver.conf.dist
 +++ b/src/server/worldserver/worldserver.conf.dist
-@@ -3994,3 +3994,81 @@ Metric.OverallStatusInterval = 1
+@@ -4147,3 +4147,81 @@ Metric.OverallStatusInterval = 1
  
  #
  ###################################################################################################
